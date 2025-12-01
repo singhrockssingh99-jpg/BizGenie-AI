@@ -1,0 +1,7 @@
+{
+  "name": "BizGenie AI - Enterprise Growth Suite",
+  "description": "An AI-powered business automation platform for Real Estate and SMBs. Features intelligent lead nurturing, automated content generation (Video/Audio/Image), and social media management.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
