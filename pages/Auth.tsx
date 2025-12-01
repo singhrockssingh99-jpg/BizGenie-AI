@@ -1,16 +1,11 @@
-
 import React, { useState } from 'react';
-import { User } from '../types';
-import { login, register } from '../services/authMock';
+import { loginUser, registerUser } from '../services/authService';
 import { Loader2, ArrowRight, LayoutDashboard, UserCircle, Briefcase } from 'lucide-react';
+import { UserRole } from '../types';
 
-interface AuthProps {
-  onLogin: (user: User) => void;
-}
-
-export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
+export const Auth: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [isAgentLogin, setIsAgentLogin] = useState(false); // New state for Agent option
+  const [isAgentLogin, setIsAgentLogin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -25,15 +20,26 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setError('');
 
     try {
-      let user;
       if (isLogin) {
-        user = await login(email, password);
+        await loginUser(email, password);
       } else {
-        user = await register(name, email, password);
+        // Sign Up Flow
+        // By default, a self-signup is a Business Admin
+        // Agents are usually added via the Team page (which would use a different flow or invitation)
+        // For this demo, we allow creating a Business Admin
+        await registerUser(name, email, password, UserRole.BUSINESS_ADMIN);
       }
-      onLogin(user);
     } catch (err: any) {
-      setError(err.message || 'Authentication failed');
+      console.error(err);
+      if (err.code === 'auth/invalid-api-key') {
+        setError("Firebase Config Missing. Please update services/firebaseConfig.ts");
+      } else if (err.code === 'auth/invalid-credential') {
+        setError("Invalid email or password.");
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError("Email is already registered.");
+      } else {
+        setError(err.message || 'Authentication failed');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -159,7 +165,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 <Loader2 size={20} className="animate-spin" />
               ) : (
                 <>
-                  {isLogin ? (isAgentLogin ? 'Login to Workspace' : 'Sign In') : 'Create Account'}
+                  {isLogin ? (isAgentLogin ? 'Login' : 'Sign In') : 'Create Account'}
                   <ArrowRight size={18} className="ml-2" />
                 </>
               )}
@@ -167,12 +173,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </form>
           
           <div className="mt-6 text-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-             <p className="text-xs text-slate-400 font-mono">
-               <strong>Demo Credentials:</strong><br/>
-               Admin: admin@platform.com<br/>
-               Owner: owner@skyline.com<br/>
-               Agent: agent@skyline.com<br/>
-               (Any password works)
+             <p className="text-xs text-slate-500">
+               <strong>Note:</strong> You must update <code>firebaseConfig.ts</code> with your project keys for this to work.
              </p>
           </div>
         </div>
