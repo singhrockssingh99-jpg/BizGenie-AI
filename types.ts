@@ -1,3 +1,4 @@
+
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   BUSINESS_ADMIN = 'BUSINESS_ADMIN',
@@ -49,12 +50,15 @@ export enum ContentType {
 }
 
 export interface ContentItem {
-  id: string;
+  id?: string;
   title: string;
   type: ContentType;
   status: 'Draft' | 'Approved' | 'Published';
   data: string; // URL or text content
-  createdAt: Date;
+  createdAt: any; // Firestore Timestamp or Date
+  businessId: string;
+  createdBy: string;
+  isShared: boolean; // If true, visible to all agents
 }
 
 export interface BusinessProfile {

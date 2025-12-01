@@ -19,7 +19,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, on
     if (user.role === UserRole.SUPER_ADMIN) {
       return [
         { id: 'dashboard', label: 'Platform Overview', icon: LayoutDashboard },
-        { id: 'businesses', label: 'Manage Businesses', icon: Briefcase }, // Placeholder for now
+        { id: 'businesses', label: 'Manage Businesses', icon: Briefcase },
         ...common
       ];
     } else if (user.role === UserRole.BUSINESS_ADMIN) {
@@ -45,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, user, on
   const menuItems = getMenuItems();
 
   return (
-    <div className="w-64 bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0 z-10 shadow-xl">
+    <div className="hidden md:flex w-64 bg-slate-900 text-white flex-col h-screen fixed left-0 top-0 z-10 shadow-xl">
       <div className="p-6 border-b border-slate-800">
         <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
           BizGenie AI

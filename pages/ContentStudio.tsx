@@ -1,21 +1,34 @@
+
 import React, { useState } from 'react';
-import { Sparkles, Image as ImageIcon, Video, Mic, Share2, Copy, Download, Loader2 } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, Video, Mic, Share2, Copy, Download, Loader2, Save, Users, CheckCircle } from 'lucide-react';
 import { generateText, generateImage, generateAudio, generateVideo } from '../services/geminiService';
+import { saveContent } from '../services/dbService';
+import { useAuth } from '../context/AuthContext';
+import { ContentType } from '../types';
 
 type GenType = 'copy' | 'image' | 'video' | 'audio';
 
 export const ContentStudio: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<GenType>('copy');
   const [prompt, setPrompt] = useState('');
   const [result, setResult] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Save State
+  const [contentTitle, setContentTitle] = useState('');
+  const [isShared, setIsShared] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
     setIsLoading(true);
     setResult(null);
     setError(null);
+    setSaveSuccess(false);
+    setContentTitle(''); // Reset title for new generation
 
     try {
       let output;
@@ -32,19 +45,55 @@ export const ContentStudio: React.FC = () => {
       
       if (output) {
         setResult(output);
+        // Default title suggestion
+        setContentTitle(`${activeTab.toUpperCase()} - ${new Date().toLocaleDateString()}`);
       } else {
         setError("Generation returned no result.");
       }
     } catch (err: any) {
       console.error(err);
-      setError("Failed to generate content. Please try again. " + (err.message || ''));
+      setError("Failed to generate content. " + (err.message || ''));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const decodeAudio = (base64: string) => {
-    return `data:audio/mp3;base64,${base64}`;
+  const handleSave = async () => {
+    if (!result || !user || !user.businessId) return;
+    if (!contentTitle.trim()) {
+      alert("Please provide a title for the content.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      let contentType = ContentType.TEXT;
+      if (activeTab === 'image') contentType = ContentType.IMAGE;
+      if (activeTab === 'video') contentType = ContentType.VIDEO;
+      if (activeTab === 'audio') contentType = ContentType.AUDIO;
+
+      await saveContent(user.businessId, {
+        title: contentTitle,
+        type: contentType,
+        status: 'Draft',
+        data: result,
+        businessId: user.businessId,
+        createdBy: user.id,
+        isShared: isShared
+      });
+      setSaveSuccess(true);
+    } catch (err) {
+      console.error("Save error", err);
+      alert("Failed to save content.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const formatAudioSrc = (data: string) => {
+    // If it's already a data URI, return it, otherwise assume base64 mp3/pcm
+    if (data.startsWith('data:')) return data;
+    return `data:audio/mp3;base64,${data}`;
   };
 
   return (
@@ -66,7 +115,7 @@ export const ContentStudio: React.FC = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => { setActiveTab(tab.id as GenType); setResult(null); setError(null); }}
+                onClick={() => { setActiveTab(tab.id as GenType); setResult(null); setError(null); setSaveSuccess(false); }}
                 className={`flex-1 py-4 flex items-center justify-center space-x-2 font-medium transition-colors ${
                   activeTab === tab.id
                     ? 'bg-indigo-50 text-indigo-600 border-b-2 border-indigo-600'
@@ -140,13 +189,10 @@ export const ContentStudio: React.FC = () => {
                   <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg" title="Download">
                     <Download size={18} />
                   </button>
-                  <button className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg" title="Share">
-                    <Share2 size={18} />
-                  </button>
                 </div>
               </div>
 
-              <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+              <div className="bg-slate-50 rounded-xl p-6 border border-slate-200 mb-6">
                 {activeTab === 'copy' && (
                   <p className="whitespace-pre-wrap text-slate-700 leading-relaxed font-medium">{result}</p>
                 )}
@@ -162,18 +208,73 @@ export const ContentStudio: React.FC = () => {
                     <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-4">
                         <Mic size={32} />
                     </div>
-                    <audio controls src={decodeAudio(result)} className="w-full max-w-md" />
+                    <audio controls src={formatAudioSrc(result)} className="w-full max-w-md" />
                   </div>
                 )}
                 
                 {activeTab === 'video' && (
                     <div className="flex flex-col items-center">
-                         <video controls className="w-full max-h-96 rounded-lg shadow-md" >
+                         <video controls className="w-full max-h-96 rounded-lg shadow-md" crossOrigin="anonymous">
                              <source src={result} type="video/mp4" />
                              Your browser does not support the video tag.
                          </video>
-                         <p className="mt-2 text-xs text-slate-500">Note: Video link requires API Key authentication to play.</p>
+                         <p className="mt-2 text-xs text-slate-500">Video generated via Veo 3.1</p>
                     </div>
+                )}
+              </div>
+
+              {/* Save & Share Section */}
+              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                <h4 className="font-semibold text-slate-800 mb-4 flex items-center">
+                  <Save size={18} className="mr-2 text-indigo-600" /> 
+                  Save to Business Library
+                </h4>
+                
+                {saveSuccess ? (
+                  <div className="flex items-center text-emerald-600 bg-emerald-50 p-4 rounded-lg">
+                    <CheckCircle size={24} className="mr-3" />
+                    <div>
+                      <p className="font-medium">Saved Successfully!</p>
+                      <p className="text-sm">This content is now available to your team.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col md:flex-row gap-4 items-end">
+                    <div className="flex-1 w-full">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Content Title</label>
+                      <input 
+                        type="text" 
+                        value={contentTitle}
+                        onChange={(e) => setContentTitle(e.target.value)}
+                        placeholder="e.g. Diwali Promo Post" 
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-slate-50"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center space-x-4 h-10 pb-1">
+                      <label className="flex items-center space-x-2 cursor-pointer select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={isShared} 
+                          onChange={(e) => setIsShared(e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-slate-700 flex items-center">
+                          <Users size={16} className="mr-1 text-slate-500" />
+                          Share with Team
+                        </span>
+                      </label>
+                    </div>
+
+                    <button 
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className="w-full md:w-auto px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium transition-colors flex items-center justify-center"
+                    >
+                      {isSaving ? <Loader2 size={18} className="animate-spin mr-2" /> : <Save size={18} className="mr-2" />}
+                      Save Asset
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

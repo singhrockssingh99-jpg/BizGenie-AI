@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
+import { BottomNav } from './components/BottomNav';
 import { Dashboard } from './pages/Dashboard';
 import { LeadsCRM } from './pages/LeadsCRM';
 import { ContentStudio } from './pages/ContentStudio';
@@ -8,48 +10,23 @@ import { Team } from './pages/Team';
 import { AdminBusinesses } from './pages/AdminBusinesses';
 import { Auth } from './pages/Auth';
 import { Onboarding } from './pages/Onboarding';
-import { User, UserRole, BusinessProfile as IBusinessProfile } from './types';
+import { UserRole, BusinessProfile as IBusinessProfile } from './types';
 import { DEFAULT_BUSINESS } from './constants';
-import { subscribeToAuth, logoutUser } from './services/authService';
 import { Loader2 } from 'lucide-react';
 
-function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+const AppContent: React.FC = () => {
+  const { user, loading, logout } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
-  
-  // State to track if the current logged-in business has completed onboarding
   const [businessProfile, setBusinessProfile] = useState<IBusinessProfile | null>(null);
 
-  useEffect(() => {
-    const unsubscribe = subscribeToAuth((authUser) => {
-      setUser(authUser);
-      setLoading(false);
-      
-      // Mock logic for business profile existence
-      // In a real DB scenario, we would fetch the business profile from 'businesses' collection
-      if (authUser && authUser.role === UserRole.BUSINESS_ADMIN) {
-        // If we have a businessId, we might fetch it. For now, we use mock if ID matches.
-        if (authUser.businessId) {
-             setBusinessProfile(DEFAULT_BUSINESS); 
-        } else {
-             setBusinessProfile(null);
-        }
+  // Initialize profile (Mock logic for now, would be a separate hook in real app)
+  React.useEffect(() => {
+    if (user && user.role === UserRole.BUSINESS_ADMIN && !businessProfile) {
+      if (user.businessId) {
+         setBusinessProfile(DEFAULT_BUSINESS); 
       }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleLogout = async () => {
-    await logoutUser();
-    setCurrentView('dashboard');
-    setBusinessProfile(null);
-  };
-
-  const handleOnboardingComplete = (profile: IBusinessProfile) => {
-    setBusinessProfile(profile);
-    // TODO: Save this profile to Firestore 'businesses' collection
-  };
+    }
+  }, [user]);
 
   if (loading) {
     return (
@@ -59,17 +36,14 @@ function App() {
     );
   }
 
-  // 1. Auth Check
   if (!user) {
     return <Auth />;
   }
 
-  // 2. Onboarding Check (Only for Business Admins who don't have a profile yet)
   if (user.role === UserRole.BUSINESS_ADMIN && !businessProfile) {
-    return <Onboarding onComplete={handleOnboardingComplete} />;
+    return <Onboarding onComplete={setBusinessProfile} />;
   }
 
-  // 3. View Routing
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
@@ -90,23 +64,33 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f3f4f6] flex">
-      {/* Sidebar Navigation */}
+    <div className="min-h-screen bg-[#f3f4f6] flex flex-col md:flex-row">
       <Sidebar 
         currentView={currentView} 
         setView={setCurrentView} 
         user={user} 
-        onLogout={handleLogout}
+        onLogout={() => { logout(); setCurrentView('dashboard'); setBusinessProfile(null); }}
       />
-
-      {/* Main Content Area */}
-      <main className="flex-1 ml-64 p-8">
+      <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8">
         <div className="max-w-7xl mx-auto">
            {renderView()}
         </div>
       </main>
+      <BottomNav 
+        currentView={currentView}
+        setView={setCurrentView}
+        user={user}
+      />
     </div>
   );
-}
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+};
 
 export default App;

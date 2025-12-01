@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -19,8 +20,9 @@ const app = initializeApp(firebaseConfig);
 // Initialize Services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const functions = getFunctions(app); // For secure backend AI calls
 
-// Initialize Analytics (optional, wrapping in try/catch to prevent blocking if ad-blockers interfere)
+// Initialize Analytics (optional)
 let analytics;
 try {
   analytics = getAnalytics(app);

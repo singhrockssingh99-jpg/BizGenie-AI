@@ -1,93 +1,105 @@
+
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// Utility to get the AI client. Note: We recreate it to ensure freshness of key.
-const getAIClient = () => {
-  const apiKey = process.env.API_KEY || ''; 
-  // In a real production app, you might want to handle missing keys gracefully in UI
-  return new GoogleGenAI({ apiKey });
-};
+// Initialize the Google GenAI Client
+// We use the environment variable as per standard secure practices for this environment
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// --- Text Generation (Marketing, Research, Chat) ---
+/**
+ * GENERATE TEXT
+ * Uses Gemini 2.5 Flash for fast, intelligent text generation.
+ */
 export const generateText = async (prompt: string, systemInstruction?: string) => {
-  const ai = getAIClient();
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
-        temperature: 0.7,
-      },
+      }
     });
     return response.text;
   } catch (error) {
     console.error("Text Gen Error:", error);
-    throw error;
+    throw new Error("Failed to generate text.");
   }
 };
 
-// --- Image Generation ---
+/**
+ * GENERATE IMAGE
+ * Uses Gemini 2.5 Flash Image.
+ */
 export const generateImage = async (prompt: string) => {
-  const ai = getAIClient();
   try {
-    // Using gemini-2.5-flash-image (Nano Banana) for general tasks or fast generation
-    // If user needs high quality, we would switch to 'imagen-3.0-generate-001' or 'gemini-3-pro-image-preview'
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: prompt,
-      config: {
-        // Nano Banana doesn't support responseMimeType
-      }
     });
     
-    // Extract image
+    // Iterate through parts to find the image
     for (const part of response.candidates?.[0]?.content?.parts || []) {
-       if (part.inlineData) {
-         return `data:image/png;base64,${part.inlineData.data}`;
-       }
+      if (part.inlineData) {
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
     }
-    return null;
+    throw new Error("No image data found in response");
   } catch (error) {
     console.error("Image Gen Error:", error);
-    throw error;
+    throw new Error("Failed to generate image.");
   }
 };
 
-// --- Audio Generation (Hinglish TTS) ---
+/**
+ * GENERATE AUDIO (TTS)
+ * Uses Gemini 2.5 Flash TTS.
+ */
 export const generateAudio = async (text: string) => {
-  const ai = getAIClient();
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-tts',
+      model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' }, // 'Kore' is usually good for clarity
+            prebuiltVoiceConfig: { voiceName: 'Kore' },
           },
         },
       },
     });
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    return base64Audio;
+    if (!base64Audio) throw new Error("No audio data generated");
+    
+    return base64Audio; // Return raw base64, caller handles formatting
   } catch (error) {
     console.error("Audio Gen Error:", error);
-    throw error;
+    throw new Error("Failed to generate audio.");
   }
 };
 
-// --- Video Generation (Veo) ---
+/**
+ * GENERATE VIDEO (Veo)
+ * Uses Veo 3.1 Fast. Requires specific User API Key handling.
+ */
 export const generateVideo = async (prompt: string) => {
-  // Ensure we check for the paid key selection for Veo
-  if (window.aistudio && !await window.aistudio.hasSelectedApiKey()) {
-     await window.aistudio.openSelectKey();
-     // We assume success if they come back, but real error handling is needed
-  }
-
-  const ai = getAIClient();
   try {
+    // 1. Check for API Key permission (Required for Veo)
+    // @ts-ignore
+    if (window.aistudio && window.aistudio.hasSelectedApiKey) {
+      // @ts-ignore
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+        // @ts-ignore
+        await window.aistudio.openSelectKey();
+      }
+    }
+
+    // 2. Re-initialize AI with potentially new key context if needed, 
+    // or just proceed with the current instance if process.env.API_KEY is managed globally.
+    // For Veo, we ensure we are using the 'veo-3.1-fast-generate-preview' model.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
     let operation = await ai.models.generateVideos({
       model: 'veo-3.1-fast-generate-preview',
       prompt: prompt,
@@ -98,20 +110,21 @@ export const generateVideo = async (prompt: string) => {
       }
     });
 
-    // Polling mechanism
+    // 3. Poll for completion
     while (!operation.done) {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Poll every 5s
-      operation = await ai.operations.getVideosOperation({ operation: operation });
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      operation = await ai.operations.getVideosOperation({operation: operation});
     }
 
+    // 4. Get Result
     const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
-    if (videoUri) {
-      return `${videoUri}&key=${process.env.API_KEY}`;
-    }
-    throw new Error("No video URI returned");
+    if (!videoUri) throw new Error("Video generation failed to return a URI");
+
+    // Append API key to fetch the actual bytes
+    return `${videoUri}&key=${process.env.API_KEY}`;
 
   } catch (error) {
     console.error("Video Gen Error:", error);
-    throw error;
+    throw new Error("Failed to generate video. " + (error as any).message);
   }
 };

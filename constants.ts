@@ -47,7 +47,10 @@ export const MOCK_CONTENT: ContentItem[] = [
     type: ContentType.IMAGE,
     status: 'Published',
     data: 'https://picsum.photos/400/300',
-    createdAt: new Date('2023-10-25')
+    createdAt: new Date('2023-10-25'),
+    businessId: 'b1',
+    createdBy: 'biz-1',
+    isShared: true
   },
   {
     id: '102',
@@ -55,7 +58,10 @@ export const MOCK_CONTENT: ContentItem[] = [
     type: ContentType.TEXT,
     status: 'Draft',
     data: 'Are you considering securing your future? Real estate remains the safest bet...',
-    createdAt: new Date()
+    createdAt: new Date(),
+    businessId: 'b1',
+    createdBy: 'biz-1',
+    isShared: false
   }
 ];
 

@@ -11,7 +11,7 @@ import {
   getDoc,
   serverTimestamp 
 } from "firebase/firestore";
-import { auth, db } from "./firebaseConfig";
+import { auth, db } from "../lib/firebase";
 import { User, UserRole } from "../types";
 
 // Map Firebase User + Firestore Data to our App User type
